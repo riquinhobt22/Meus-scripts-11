@@ -1,239 +1,223 @@
 -- ====================================================================
--- ULTRA HUB MOBILE - VERSÃO DEFINITIVA PARA GITHUB E DELTA EXECUTOR
+-- FLUENTY HUB PREMIUM - VERSÃO ULTRA OTIMIZADA E CORRIGIDA PARA DELTA
 -- ====================================================================
+
+local Fluent = loadstring(game:HttpGet("https://github.com"))()
+local SaveManager = loadstring(game:HttpGet("https://githubusercontent.com"))()
+local InterfaceManager = loadstring(game:HttpGet("https://githubusercontent.com"))()
+
 local Player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 
--- Criar a interface de forma estável no Mobile (Ignora restrições do Delta)
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "DeltaUltimateHub"
-ScreenGui.ResetOnSpawn = false
-pcall(function()
-    ScreenGui.Parent = Player:WaitForChild("PlayerGui", 10)
-end)
+-- Configurações de Estado Global
+local Config = {
+    Speed = 16,
+    Jump = 50,
+    Fly = false,
+    KeepFly = false,
+    KeepSpeed = false,
+    ESP = false,
+    FastMode = false,
+    NoShake = false,
+    FullBright = false,
+    TargetSlot = nil,
+    SavedTool = nil
+}
 
--- Sistema de Arrastar Janelas via Touch Manual (Evita travamentos comuns de tela)
-local function makeDraggable(frame)
-    local dragging, dragInput, dragStart, startPos
-    frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
-        end
-    end)
-    frame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseValueUp or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    RunService.RenderStepped:Connect(function()
-        if dragging and dragInput then
-            local delta = dragInput.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-end
+-- Criando a Janela Principal (Interface Premium)
+local Window = Fluent:CreateWindow({
+    Title = "Fluenty Hub",
+    SubTitle = "by Mobile Optimizer",
+    TabWidth = 140,
+    Size = UDim2.fromOffset(460, 320),
+    Acrylic = false, -- Desativado para melhor FPS no Mobile
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl -- Botão flutuante na tela cuidará disso no Mobile
+})
+
+-- Abas do Menu
+local Tabs = {
+    Inventory = Window:AddTab({ Title = "Slots & Itens", Icon = "backpack" }),
+    Movement = Window:AddTab({ Title = "Movimentação", Icon = "run" }),
+    Visuals = Window:AddTab({ Title = "Visual & FPS", Icon = "eye" })
+}
 
 -- ====================================================================
--- JANELA 1: GERENCIADOR DE INVENTÁRIO (SLOTS)
+-- ABA 1: GERENCIADOR DE INVENTÁRIO (SLOTS)
 -- ====================================================================
-local MainFrame = Instance.new("Frame")
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
-MainFrame.Size = UDim2.new(0, 240, 0, 340)
-MainFrame.Active = true
-makeDraggable(MainFrame)
-
-local Title = Instance.new("TextLabel")
-Title.Parent = MainFrame
-Title.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Font = Enum.Font.SourceSansBold
-Title.Text = "  GERENCIADOR DE SLOTS"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 14
-Title.TextXAlignment = Enum.TextXAlignment.Left
-
-local RefreshBtn = Instance.new("TextButton")
-RefreshBtn.Parent = MainFrame
-RefreshBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 220)
-RefreshBtn.Position = UDim2.new(1, -75, 0, 3)
-RefreshBtn.Size = UDim2.new(0, 70, 0, 24)
-RefreshBtn.Font = Enum.Font.SourceSansBold
-RefreshBtn.Text = "🔄 Refresh"
-RefreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-RefreshBtn.TextSize = 12
-
-local Scroll = Instance.new("ScrollingFrame")
-Scroll.Parent = MainFrame
-Scroll.BackgroundTransparency = 1
-Scroll.Position = UDim2.new(0, 5, 0, 35)
-Scroll.Size = UDim2.new(1, -10, 1, -45)
-Scroll.CanvasSize = UDim2.new(0, 0, 0, 320)
-Scroll.ScrollBarThickness = 3
-
-local ListLayout = Instance.new("UIListLayout")
-ListLayout.Parent = Scroll
-ListLayout.Padding = UDim.new(0, 4)
-
-local targetSlot = nil
-local savedToolName = nil
-local slotButtons = {}
-
-local function refreshInventoryUI()
-    for i = 1, 9 do
-        if slotButtons[i] then
-            slotButtons[i].Text = "Slot " .. i .. ": [Vazio]"
-            slotButtons[i].TextColor3 = Color3.fromRGB(140, 140, 140)
-        end
+local SlotDropdown = Tabs.Inventory:AddDropdown("SelectSlot", {
+    Title = "Escolha o Slot para Monitorar",
+    Values = {"Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6", "Slot 7", "Slot 8", "Slot 9"},
+    CurrentValue = "Slot 1",
+    Callback = function(Value)
+        local num = tonumber(Value:match("%d+"))
+        Config.TargetSlot = num
     end
+})
+
+local ItemStatusLabel = Tabs.Inventory:AddParagraph({
+    Title = "Status do Item Salvo",
+    Content = "Nenhum item travado no slot ainda."
+})
+
+local function scanInventory()
     local tools = Player.Backpack:GetChildren()
     if Player.Character then
         for _, t in pairs(Player.Character:GetChildren()) do
             if t:IsA("Tool") then table.insert(tools, t) end
         end
     end
-    for i = 1, 9 do
-        if slotButtons[i] and tools[i] then
-            slotButtons[i].Text = "Slot " .. i .. ": " .. tools[i].Name
-            slotButtons[i].TextColor3 = Color3.fromRGB(255, 255, 255)
-            if targetSlot == i then savedToolName = tools[i].Name end
-        end
+    
+    if Config.TargetSlot and tools[Config.TargetSlot] then
+        Config.SavedTool = tools[Config.TargetSlot]
+        ItemStatusLabel:SetTitle("Item Salvo: " .. tools[Config.TargetSlot].Name)
+        ItemStatusLabel:SetDesc("Este item será forçado na sua mão após o respawn.")
+    else
+        ItemStatusLabel:SetTitle("Status do Item Salvo")
+        ItemStatusLabel:SetDesc("Slot vazio ou item indisponível.")
     end
 end
 
-for i = 1, 9 do
-    local SlotBtn = Instance.new("TextButton")
-    SlotBtn.Parent = Scroll
-    SlotBtn.Size = UDim2.new(1, 0, 0, 28)
-    SlotBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-    SlotBtn.Font = Enum.Font.SourceSans
-    SlotBtn.TextSize = 13
-    slotButtons[i] = SlotBtn
-
-    SlotBtn.MouseButton1Click:Connect(function()
-        for j = 1, 9 do if slotButtons[j] then slotButtons[j].BackgroundColor3 = Color3.fromRGB(35, 35, 40) end end
-        SlotBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 180)
-        targetSlot = i
-        local tools = Player.Backpack:GetChildren()
-        if Player.Character then
-            for _, t in pairs(Player.Character:GetChildren()) do if t:IsA("Tool") then table.insert(tools, t) end end
-        end
-        savedToolName = tools[i] and tools[i].Name or nil
-    end)
-end
-RefreshBtn.MouseButton1Click:Connect(refreshInventoryUI)
+Tabs.Inventory:AddButton({
+    Title = "🔄 Sincronizar / Refresh Inventário",
+    Description = "Clique se mudar de item ou coletar algo novo",
+    Callback = scanInventory
+})
 
 -- ====================================================================
--- JANELA 2: MOVEMENT & VISUAL TOOLS
+-- ABA 2: MOVIMENTAÇÃO (FLY & WALKSPEED)
 -- ====================================================================
-local ToolsFrame = Instance.new("Frame")
-ToolsFrame.Parent = ScreenGui
-ToolsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-ToolsFrame.Position = UDim2.new(0, 260, 0, 50)
-ToolsFrame.Size = UDim2.new(0, 230, 0, 400)
-ToolsFrame.Active = true
-makeDraggable(ToolsFrame)
+local SpeedSlider = Tabs.Movement:AddSlider("SpeedSlider", {
+    Title = "Ajustar WalkSpeed",
+    Description = "Velocidade de Corrida",
+    Default = 16,
+    Min = 16,
+    Max = 250,
+    Rounding = 0,
+    Callback = function(Value)
+        Config.Speed = Value
+    end
+})
 
-local ToolsTitle = Instance.new("TextLabel")
-ToolsTitle.Parent = ToolsFrame
-ToolsTitle.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-ToolsTitle.Size = UDim2.new(1, 0, 0, 30)
-ToolsTitle.Font = Enum.Font.SourceSansBold
-ToolsTitle.Text = "  MOVIMENTAÇÃO E VISUAIS"
-ToolsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToolsTitle.TextSize = 14
-ToolsTitle.TextXAlignment = Enum.TextXAlignment.Left
+local JumpSlider = Tabs.Movement:AddSlider("JumpSlider", {
+    Title = "Ajustar JumpPower",
+    Description = "Altura do Pulo",
+    Default = 50,
+    Min = 50,
+    Max = 500,
+    Rounding = 0,
+    Callback = function(Value)
+        Config.Jump = Value
+    end
+})
 
-local SpeedInput = Instance.new("TextBox")
-SpeedInput.Parent = ToolsFrame
-SpeedInput.Position = UDim2.new(0, 10, 0, 40)
-SpeedInput.Size = UDim2.new(1, -20, 0, 28)
-SpeedInput.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-SpeedInput.Text = "Definir Velocidade (Ex: 60)"
-SpeedInput.TextColor3 = Color3.fromRGB(180, 180, 180)
-SpeedInput.TextSize = 12
-SpeedInput.ClearTextOnFocus = true
-
-local customSpeed = 16
-local flying = false
-local keepFly = false
-local keepSpeed = false
-local espActive = false
-local fastMode = false
-local noShake = false
-local fullBright = false
-
-SpeedInput.FocusLost:Connect(function()
-    customSpeed = tonumber(SpeedInput.Text) or 16
+local FlyToggle = Tabs.Movement:AddToggle("FlyToggle", {Title = "Ativar Fly (Voo Livre)", Default = false})
+FlyToggle:OnChanged(function()
+    Config.Fly = FlyToggle.Value
 end)
 
-local function createToggle(parent, text, pos, callback)
-    local btn = Instance.new("TextButton")
-    btn.Parent = parent
-    btn.Position = pos
-    btn.Size = UDim2.new(1, -20, 0, 30)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-    btn.Font = Enum.Font.SourceSansBold
-    btn.Text = text .. ": OFF"
-    btn.TextColor3 = Color3.fromRGB(230, 70, 70)
-    btn.TextSize = 12
+Tabs.Movement:AddToggle("KeepFlyToggle", {Title = "Manter Fly Após a Morte", Default = false}):OnChanged(function(v) Config.KeepFly = v end)
+Tabs.Movement:AddToggle("KeepSpeedToggle", {Title = "Manter Velocidade Após a Morte", Default = false}):OnChanged(function(v) Config.KeepSpeed = v end)
+
+-- ====================================================================
+-- ABA 3: VISUAIS & FPS (ESP, FASTMODE, BRIGHT)
+-- ====================================================================
+Tabs.Visuals:AddToggle("ESPToggle", {Title = "Player ESP (Ver pelas Paredes)", Default = false}):OnChanged(function(v) Config.ESP = v end)
+Tabs.Visuals:AddToggle("FastModeToggle", {Title = "Fast Mode (Remover Texturas / +FPS)", Default = false}):OnChanged(function(v) Config.FastMode = v end)
+Tabs.Visuals:AddToggle("NoShakeToggle", {Title = "Anular Tremor de Câmera", Default = false}):OnChanged(function(v) Config.NoShake = v end)
+Tabs.Visuals:AddToggle("BrightToggle", {Title = "FullBright (Iluminação Máxima)", Default = false}):OnChanged(function(v) Config.FullBright = v end)
+
+-- ====================================================================
+-- MOTORES INTERNOS DO SCRIPT (LOGICA DE EXECUÇÃO CORRIGIDA)
+-- ====================================================================
+
+-- Motor de Voo Tridimensional por Câmera (Física Forçada)
+local flyAttachment, flyLinearVelocity, flyAlignOrient
+local function updateFly()
+    local char = Player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
     
-    local state = false
-    btn.MouseButton1Click:Connect(function()
-        state = not state
-        btn.Text = state and text .. ": ON" or text .. ": OFF"
-        btn.BackgroundColor3 = state and Color3.fromRGB(40, 140, 70) or Color3.fromRGB(45, 45, 50)
-        btn.TextColor3 = state and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(230, 70, 70)
-        callback(state)
-    end)
-    return btn
+    if Config.Fly and root and hum and workspace.CurrentCamera then
+        if not flyLinearVelocity then
+            flyAttachment = Instance.new("Attachment")
+            flyAttachment.Parent = root
+            
+            flyLinearVelocity = Instance.new("LinearVelocity")
+            flyLinearVelocity.MaxForce = 9e9
+            flyLinearVelocity.Attachment0 = flyAttachment
+            flyLinearVelocity.Parent = root
+            
+            flyAlignOrient = Instance.new("AlignOrientation")
+            flyAlignOrient.MaxTorque = 9e9
+            flyAlignOrient.Attachment0 = flyAttachment
+            flyAlignOrient.Parent = root
+            
+            hum.PlatformStand = true
+        end
+        
+        local camCFrame = workspace.CurrentCamera.CFrame
+        local moveDirection = hum.MoveDirection
+        local velocity = Vector3.new(0, 0, 0)
+        
+        if moveDirection.Magnitude > 0 then
+            velocity = camCFrame.LookVector * (moveDirection.Z * -70) + camCFrame.RightVector * (moveDirection.X * 70)
+        end
+        
+        flyLinearVelocity.VectorVelocity = velocity
+        flyAlignOrient.CFrame = camCFrame
+    else
+        if flyLinearVelocity then flyLinearVelocity:Destroy() flyLinearVelocity = nil end
+        if flyAlignOrient then flyAlignOrient:Destroy() flyAlignOrient = nil end
+        if flyAttachment then flyAttachment:Destroy() flyAttachment = nil end
+        if hum then hum.PlatformStand = false end
+    end
 end
 
--- Instanciação dos Controles
-createToggle(ToolsFrame, "Fly (Voo Livre)", UDim2.new(0, 10, 0, 75), function(v) flying = v end)
-createToggle(ToolsFrame, "Keep Fly on Death", UDim2.new(0, 10, 0, 110), function(v) keepFly = v end)
-createToggle(ToolsFrame, "Keep Speed on Death", UDim2.new(0, 10, 0, 145), function(v) keepSpeed = v end)
-createToggle(ToolsFrame, "Player ESP", UDim2.new(0, 10, 0, 180), function(v) espActive = v end)
-createToggle(ToolsFrame, "Fast Mode (Otimizar)", UDim2.new(0, 10, 0, 215), function(v) fastMode = v end)
-createToggle(ToolsFrame, "No Camera Shake", UDim2.new(0, 10, 0, 250), function(v) noShake = v end)
-createToggle(ToolsFrame, "FullBright (Luminar)", UDim2.new(0, 10, 0, 285), function(v) fullBright = v end)
+-- Monitoramento Contínuo por RenderStepped
+RunService.RenderStepped:Connect(function()
+    local char = Player.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        
+        -- Garante a Velocidade e Pulo interseptando alterações do servidor
+        if hum and not Config.Fly then
+            hum.WalkSpeed = Config.Speed
+            if hum.UseJumpPower then hum.JumpPower = Config.Jump else hum.JumpHeight = Config.Jump / 3 end
+        end
+        
+        updateFly()
+        
+        -- No Camera Shake
+        if Config.NoShake and Player:FindFirstChild("PlayerScripts") then
+            local s = Player.PlayerScripts:FindFirstChild("CameraShaker", true) or char:FindFirstChild("CameraShake", true)
+            if s then pcall(function() s:Destroy() end) end
+        end
+    end
+    
+    -- FullBright Estável
+    if Config.FullBright then
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+        Lighting.GlobalShadows = false
+    end
+end)
 
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Parent = MainFrame
-CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-CloseBtn.Position = UDim2.new(1, -22, 0, 4)
-CloseBtn.Size = UDim2.new(0, 18, 0, 18)
-CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-
--- ====================================================================
--- SISTEMAS INTERNOS (MOTORES E REPETIÇÕES)
--- ====================================================================
-
--- Loop de ESP (Ver através das paredes)
+-- Sistema de ESP Dinâmico sem Lag
 local espBoxes = {}
 task.spawn(function()
     while true do
         task.wait(0.5)
-        if espActive then
+        if Config.ESP then
             for _, p in pairs(game.Players:GetPlayers()) do
                 if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
                     if p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
                         if not espBoxes[p] or not espBoxes[p].Parent then
-                            local box = Instance.new("BoxHandleAdornment")
-                            box.Size = p.Character:GetExtentsSize() + Vector3.new(0.3, 0.3, 0.3)
-                            box.AlwaysOnTop = true
-                            box.ZIndex = 5
-                            box.Color3 = Color3.fromRGB(255, 215, 0)
-                            box.Transparency = 0.6
+                            local box = Instance.new("Highlight")
+                            box.FillColor = Color3.fromRGB(255, 0, 0)
+                            box.OutlineColor = Color3.fromRGB(255, 255, 255)
+                            box.FillTransparency = 0.5
                             box.Adornee = p.Character
                             box.Parent = p.Character:FindFirstChild("HumanoidRootPart")
                             espBoxes[p] = box
@@ -248,4 +232,21 @@ task.spawn(function()
     end
 end)
 
--- Sistema Corrigido de Voo Livre (Segue Direção da Câmera)
+-- Otimizador Fast Mode Avançado
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if Config.FastMode then
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and obj.Material ~= Enum.Material.SmoothPlastic then
+                    obj.Material = Enum.Material.SmoothPlastic
+                    obj.Reflectance = 0
+                end
+            end
+        end
+    end
+end)
+
+-- Mecanismo Inteligente de Respawn (Pós-Morte)
+Player.CharacterAdding:Connect(function(newCharacter)
+
